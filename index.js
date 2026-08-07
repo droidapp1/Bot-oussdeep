@@ -31,25 +31,8 @@ async function startBot() {
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state,
-        printQRInTerminal: false
+        printQRInTerminal: true // هنا غادي يطبع QR Code مباشرة في الـ Logs
     });
-
-    if (!sock.authState.creds.registered) {
-        // تأكد أن هذا هو رقمك الصحيح تماماً مع رمز الدولة بدون فراغات زائدة
-        const phoneNumber = "212762837453"; 
-        
-        setTimeout(async () => {
-            try {
-                let code = await sock.requestPairingCode(phoneNumber);
-                code = code?.match(/.{1,4}/g)?.join('-') || code;
-                console.log(`\n========================================`);
-                console.log(`🔑 رمز الاقتران الجديد هو: ${code}`);
-                console.log(`========================================\n`);
-            } catch (err) {
-                console.log("خطأ في توليد رمز الاقتران:", err);
-            }
-        }, 5000);
-    }
 
     sock.ev.on('creds.update', saveCreds);
 
