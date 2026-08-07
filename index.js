@@ -5,11 +5,9 @@ const {
 } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const pino = require("pino");
-const fs = require('fs');
-const path = require('path');
 
-// إعداد Google Gemini API
-const API_KEY = "YOUR_GEMINI_API_KEY"; // حط مفتاح الـ API ديالك هنا إذا مازال ما حطيتيهش
+// إعداد Google Gemini API (حط مفتاحك هنا)
+const API_KEY = "YOUR_GEMINI_API_KEY"; 
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -23,7 +21,8 @@ async function getAIResponse(prompt) {
 }
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
+    // إنشاء مجلد مؤقت للجلسة أوتوماتيكياً
+    const { state, saveCreds } = await useMultiFileAuthState('./session');
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
@@ -31,11 +30,22 @@ async function startBot() {
         printQRInTerminal: false
     });
 
-    // ربط البوت برقم الهاتف مباشرة بدون مشاكل الـ Readline في السيرفر
+    // إذا لم يكن متصلاً، سيطلب رمز الاقتران برقمك مباشرة
     if (!sock.authState.creds.registered) {
-        const phoneNumber = "212762837453";
-        const code = await sock.requestPairingCode(phoneNumber.trim());
-        console.log(`🔑 رمز الاقتران الخاص بك هو: ${code?.match(/.{1,4}/g)?.join('-')}`);
+        const phoneNumber = "212762837453"; // رقمك مع رمز الدولة
+        
+        // انتظار بسيط حتى يستعد الاتصال
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(phoneNumber.trim());
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log(`\n========================================`);
+                console.log(`🔑 رمز الاقتران الخاص بك هو: ${code}`);
+                console.log(`========================================\n`);
+            } catch (err) {
+                console.log("خطأ في توليد رمز الاقتران، سيتم إعادة المحاولة...", err);
+            }
+        }, 3000);
     }
 
     sock.ev.on('creds.update', saveCreds);
@@ -44,9 +54,10 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut);
+            console.log('🔄 انقطع الاتصال، جاري إعادة المحاولة...', shouldReconnect);
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
-            console.log('✅ تم الاتصال بالواتساب بنجاح!');
+            console.log('✅ تم اتصال البوت بالواتساب بنجاح!');
         }
     });
 
@@ -62,8 +73,8 @@ async function startBot() {
             if (text === '!menu' || text === '!help') {
                 const menuText = `🤖 *أوامر البوت:* \n\n` +
                                 `📋 \`!menu\` - عرض القائمة\n` +
-                                `📂 \`!apk\` - تحميل التطبيق\n` +
-                                `⚡ \`!ping\` - فحص العمل`;
+                                `⚡ \`!ping\` - فحص العمل\n` +
+                                `🤖 \`!ai [سؤالك]\``;
                 await sock.sendMessage(from, { text: menuText });
             }
             else if (text === '!ping') {
